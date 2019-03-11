@@ -1,0 +1,6 @@
+.vs_code
+.idea
+*.swp
+
+node_modules
+
