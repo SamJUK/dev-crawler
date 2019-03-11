@@ -9,7 +9,7 @@ module.exports = class Crawler {
         this.settings = Object.assign(this.defaults, args);
         this.urls = {
             visited: {},
-            queued: [this.settings.url]
+            queued: [{target: this.settings.url}]
         };
         
     }
@@ -27,16 +27,16 @@ module.exports = class Crawler {
 
     loadUrl(url) {
         rp({
-            uri: url,
+            uri: url.target,
             resolveWithFullResponse: true,
             followRedirect: false,
             followAllRedirects: false
         })
-        .then(this.handleSiteLoad.bind(this))
-        .catch(this.handleSiteError.bind(this));
+        .then(this.handleSiteLoad.bind(this, url))
+        .catch(this.handleSiteError.bind(this, url));
     }
 
-    handleSiteLoad(request) {
+    handleSiteLoad(url, request) {
         var url = request.request.href;
         var statusCode = request.statusCode;
         var $ = cheerio.load(request.body);
@@ -45,11 +45,16 @@ module.exports = class Crawler {
         var totalLen = visitedLen + this.urls.queued.length;
         console.log(`Crawled (${visitedLen}/${totalLen}):: ${statusCode} :: ${url}`);
 
+        var referer = url.hasOwnProperty('referrer')
+            ? url.referrer
+            : null;
+
         var links = $('a[href]').toArray().map(anchor => anchor.attribs.href);
-        links = this.queueLinks(links);
+        links = this.queueLinks(links, url);
         
         this.urls.visited[url] = {
             statusCode: statusCode,
+            referer: referer,
             links: links
         };
 
@@ -74,9 +79,13 @@ module.exports = class Crawler {
         this.loadUrl(this.urls.queued[0]);
     }
 
-    handleSiteError(err) {
+    handleSiteError(url, err) {
         var url = err.options.uri;
         var statusCode = err.statusCode;
+
+        var referer = url.hasOwnProperty('referrer')
+            ? url.referrer
+            : null;
 
         var visitedLen = Object.keys(this.urls.visited).length;
         var totalLen = visitedLen + this.urls.queued.length;
@@ -84,12 +93,13 @@ module.exports = class Crawler {
 
         var data = {
             statusCode: statusCode,
-            links: []
+            referer: referer,
+            links: [],
         };
 
         if(statusCode === 301 || statusCode === 302) {
             var redirLocation = err.response.headers.location;
-            this.urls.queued.push(redirLocation);
+            this.urls.queued.push({target: redirLocation, referer: referer});
             data.location = redirLocation;
         }
 
@@ -98,7 +108,7 @@ module.exports = class Crawler {
         setTimeout(this.handleNextLink.bind(this), this.settings.rateLimit);
     }
 
-    queueLinks(links) {
+    queueLinks(links, referer) {
         links = links
             .map(this.removeHashAndParams)
             .filter(this.isInternalLink.bind(this))
@@ -107,7 +117,8 @@ module.exports = class Crawler {
             .map(normalizeUrl)
             .filter(this.isDuplicate)
             .filter(this.hasVisitedBefore.bind(this))
-            .filter(this.isAlreadyQueued.bind(this));
+            .filter(this.isAlreadyQueued.bind(this))
+            .map( link => Object({target: link, referer: referer}));
 
         this.urls.queued = this.urls.queued.concat(...links);
         return links;
