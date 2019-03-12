@@ -55,6 +55,7 @@ module.exports = class Crawler {
         this.urls.visited[url] = {
             statusCode: statusCode,
             referer: referer,
+            referrers: [],
             links: links
         };
 
@@ -80,6 +81,10 @@ module.exports = class Crawler {
     }
 
     handleSiteError(url, err) {
+        if (typeof err.options === 'undefined') {
+            console.error(err);
+        }
+
         var url = err.options.uri;
         var statusCode = err.statusCode;
 
@@ -94,6 +99,7 @@ module.exports = class Crawler {
         var data = {
             statusCode: statusCode,
             referer: referer,
+            referrers: [],
             links: [],
         };
 
@@ -116,9 +122,9 @@ module.exports = class Crawler {
             .filter(functions.isValidUrl)
             .map(normalizeUrl)
             .filter(this.isDuplicate)
-            .filter(this.hasVisitedBefore.bind(this))
-            .filter(this.isAlreadyQueued.bind(this))
-            .map( link => Object({target: link, referer: referer}));
+            .filter(this.hasVisitedBefore.bind(this, referer))
+            .filter(this.isAlreadyQueued.bind(this, referer))
+            .map( link => Object({target: link, referer: referer, referrers: [referer]}));
 
         this.urls.queued = this.urls.queued.concat(...links);
         return links;
@@ -181,12 +187,32 @@ module.exports = class Crawler {
         }
     }
 
-    hasVisitedBefore(link) {
-        return this.urls.visited.hasOwnProperty(link) === false
+    hasVisitedBefore(referer, link) {
+        var res = this.urls.visited.hasOwnProperty(link);
+
+        if(res) {
+            if (typeof this.urls.visited[link].referrers === 'undefined') {
+                this.urls.visited[link].referrers = [];
+            }
+            this.urls.visited[link].referrers.push(referer);
+        }
+
+        return res === false;
     }
 
-    isAlreadyQueued(link) {
-        return this.urls.queued.includes(link) === false
+    isAlreadyQueued(referer, link) {
+        var links = this.urls.queued.map( l => l.target );
+        var res = links.includes(link) === false;
+        var idx = links.indexOf(link);
+
+        if (idx !== -1) {
+            if (typeof this.urls.queued[idx].referrers === 'undefined') {
+                this.urls.queued[idx].referrers = [];
+            }
+            this.urls.queued[idx].referrers.push(referer);
+        }
+
+        return res;
     }
 
 };
