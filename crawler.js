@@ -63,12 +63,12 @@ module.exports = class Crawler {
     }
 
     handleNextLink() {
-        var hasMaxPages = this.settings.maxPages < 0
+        var hasMaxPages = this.settings.maxPages > 0;
         var maxPages = this.settings.maxPages;
         var currentPages = Object.keys(this.urls.visited).length;
-        
+
         console.log('URLS LEFT: '+this.urls.queued.length);
-        if (this.urls.queued.length <= 1 && (hasMaxPages && currentPages >= maxPages)) {
+        if (this.urls.queued.length < 1 || (hasMaxPages && currentPages >= maxPages)) {
             console.log(`Finished crawling ${Object.keys(this.urls.visited).length} urls on ${this.settings.url}`);
             var re = new RegExp('[^a-zA-Z0-9\-]', 'gim');
             var site = this.settings.url.replace(re, '_').replace('_*', '_');

@@ -15,7 +15,7 @@ if(functions.isValidUrl(site) === false) {
 
 let site_crawler = new crawler({
   rateLimit: 500,
-  maxPages: -1,
+  maxPages: 5,
   url: site
 });
 
